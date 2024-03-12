@@ -11,7 +11,6 @@ Official implementation of MINDE: Mutual Information Neural Diffusion Estimation
 List of packages (see also `requirements.txt`)
 
 ```
-absl_py==2.1.0
 bmi==1.0.0
 jax==0.4.25
 numpy==1.26.4
