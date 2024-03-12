@@ -47,6 +47,8 @@ Please refer to `src/consistency_tests/` to run the consistency tests. Please no
 
 ```
 
+
+
 ## Demo 
 
 `demo.ipynb` is quick jupyter notebook to launch MINDE.
