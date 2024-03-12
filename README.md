@@ -36,7 +36,7 @@ MI estimation is conducted in `src\minde\minde_cond.py` and `src\minde\minde_j.p
 The training is conducted in `src\libs\train_step_cond.py` and `src\libs\SDE.train_step.py`( See Algorithm 1 and 3) 
 
 
-Make sure the [requirements](#requirements) are satisfied in your environment. To run minde_c and minde_j and competitors, you can specify the number of tasks by choosing `task_0` and `task_n` which corresponds to the number of the task in in  [paper](https://arxiv.org/abs/2306.11078). 
+Make sure the [requirements](#requirements) are satisfied in your environment. To run minde_c and minde_j and baselines, you can specify the number of tasks by choosing `task_0` and `task_n` which corresponds to the number of the task in in  [paper](https://arxiv.org/abs/2306.11078). 
 
 ```bash
 python -m scripts.eval_minde_c --task_0 0 --task_n 2
