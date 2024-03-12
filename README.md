@@ -29,7 +29,7 @@ MI estimation is conducted in `src\minde\minde_cond.py` and `src\minde\minde_j.p
 ## Demo 
 
 
-`demo.ipynb` is quick jupyter notebook to launch MINDE.
+`demo.ipynb` is a quick jupyter notebook to launch MINDE.
 
 ## Training
 
