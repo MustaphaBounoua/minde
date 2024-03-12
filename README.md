@@ -48,4 +48,3 @@ python -m scripts.eval_baseline --task_0 0 --task_n 2
 
 Please refer to `src/consistency_tests/` to run the consistency tests. Please note that it's first required to train the autoencoder by running `python -m src.consistency_tests.Autoencoder --rows 10`.
 
-```
