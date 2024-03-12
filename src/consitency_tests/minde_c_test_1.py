@@ -23,14 +23,14 @@ parser.add_argument('--rows',  type=int, default=0)
 parser.add_argument('--seed',  type=int, default=0)
 
 
-class Minde_MLD_c(pl.LightningModule):
+class Minde_mnist_c(pl.LightningModule):
 
     def __init__(self, dim_x, dim_y, lr=1e-3, mod_list=["x", "y"], use_skip=True,
                  debias=False, weighted=False, use_ema=False,
                  d=0.5, test_samples=None, gt=0.0, aes=None,
                  rows=28
                  ):
-        super(Minde_MLD_c, self).__init__()
+        super(Minde_mnist_c, self).__init__()
         self.dim_x = dim_x
         self.dim_y = dim_y
         self.mod_list = mod_list
@@ -472,7 +472,7 @@ if __name__ == "__main__":
     ae_1 = AE.load_from_checkpoint(paths[0]).eval()
     ae_2 = AE.load_from_checkpoint(paths[1]).eval()
 
-    mld = Minde_MLD_c(mod_list=["x", "y"],
+    mld = Minde_mnist_c(mod_list=["x", "y"],
                       dim_x=dim, dim_y=dim, lr=LR, aes=nn.ModuleDict({
                           "x": ae_1, "y": ae_2
                       }), rows=rows,

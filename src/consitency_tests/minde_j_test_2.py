@@ -29,14 +29,14 @@ parser.add_argument('--seed',  type=str, default=0 )
 
 
 
-class Minde_MLD(pl.LightningModule):
+class Minde_mnist_j(pl.LightningModule):
     
     def __init__(self,dim_x,dim_y ,lr = 1e-3,mod_list=["x","y"],use_skip = True, 
                  debias = False, weighted = False,use_ema = False ,
                  d = 0.3, test_samples = None,gt = 0.0, aes=None,
                  rows = 28
                  ):
-        super(Minde_MLD, self).__init__()
+        super(Minde_mnist_j, self).__init__()
         self.dim_x =dim_x
         self.dim_y =dim_y
 
@@ -562,7 +562,7 @@ if __name__ =="__main__":
     ae_2 =AE.load_from_checkpoint(paths[1]).eval()
     ae_3 =AE.load_from_checkpoint(paths[2]).eval()
 
-    mld = Minde_MLD(mod_list= ["x","y"],
+    mld = Minde_mnist_j(mod_list= ["x","y"],
          dim_x= dim,dim_y=dim,lr = LR, 
          aes= nn.ModuleDict({
               "x1":ae_1,"x2":ae_1, "y":ae_2,"hy":ae_3

@@ -1,10 +1,7 @@
-import sys
-root = "/home/*****/work/mi/"
-sys.path.append(root)
+
 import torch
 import torch.nn as nn
-import torch.distributions as dist
-from torch.nn import functional as F
+
 import pytorch_lightning as pl
 import torchvision
 from src.data.mnist_pair import get_mnist_dataset

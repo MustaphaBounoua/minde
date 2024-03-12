@@ -6,10 +6,12 @@ import pytorch_lightning as pl
 from src.model.score_net import UnetMLP
 from src.libs.ema import EMA
 from src.libs.SDE import VP_SDE ,concat_vect ,deconcat
+from torch.utils.data import Dataset ,DataLoader
 from ..libs.importance import get_normalizing_constant
 from .Autoencoder import AE, MnistDecoder ,MnistEncoder,log_modalities
 from src.data.mnist_pair import get_mnist_dataset
 from pytorch_lightning.loggers import TensorBoardLogger
+from ..data.mnist_pair import MNIST_pairs
 import os
 import pickle
 import json
@@ -29,14 +31,14 @@ parser.add_argument('--seed',  type=str, default=0 )
 
 
 
-class Minde_MLD_c(pl.LightningModule):
+class Minde_mnist_c(pl.LightningModule):
     
     def __init__(self,dim_x,dim_y ,lr = 1e-3,mod_list=["x","y"],use_skip = True, 
                  debias = False, weighted = False,use_ema = False ,
                  d = 0.5, test_samples = None,gt = 0.0, aes=None,
                  rows = 28,batch_size=64
                  ):
-        super(Minde_MLD_c, self).__init__()
+        super(Minde_mnist_c, self).__init__()
         self.dim_x =dim_x
         self.dim_y =dim_y
 
@@ -603,7 +605,7 @@ if __name__ =="__main__":
     ae_2 =AE.load_from_checkpoint(paths[1]).eval()
    
 
-    mld = Minde_MLD_c(mod_list= ["x","y"],
+    mld = Minde_mnist_c(mod_list= ["x","y"],
          dim_x= dim,dim_y=dim,lr = LR, 
          aes= nn.ModuleDict({
               "x1":ae_1,"x2":ae_1, "y1":ae_2,"y2":ae_2
