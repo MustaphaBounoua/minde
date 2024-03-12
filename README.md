@@ -26,7 +26,10 @@ torchvision==0.17.1
 
 MI estimation is conducted in `src\minde\minde_cond.py` and `src\minde\minde_j.py` with the functions `mi_compute_sigma()` and `mi_compute()` for both the variants (See Algorithm 2 and Algorithm 4 ).
 
+## Demo 
 
+
+`demo.ipynb` is quick jupyter notebook to launch MINDE.
 
 ## Training
 
@@ -43,15 +46,11 @@ python -m scripts.eval_baseline --task_0 0 --task_n 2
 
 ```
 
-Please refer to `src/consistency_tests/` to run the consistency tests. Please note that it's first required to train the autoencoder by running `python -m src.consistency_tests.Autoencoder --rows 10` 
+Please refer to `src/consistency_tests/` to run the consistency tests. Please note that it's first required to train the autoencoder by running `python -m src.consistency_tests.Autoencoder --rows 10`.
 
 ```
 
 
-
-## Demo 
-
-`demo.ipynb` is quick jupyter notebook to launch MINDE.
 
 
 
