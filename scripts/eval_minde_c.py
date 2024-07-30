@@ -12,19 +12,7 @@ import jax
 
 jax.config.update('jax_platform_name', 'cpu')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--task_0', type=int, default=0)
-parser.add_argument('--task_n', type=int, default=-1 )
-parser.add_argument('--weighted', type=bool, default=False)
 
-parser.add_argument('--debias_train', type=bool, default=True)
-parser.add_argument('--debias_test',  type=bool, default=False)
-parser.add_argument('--use_pretrain',  type=bool, default=False )
-parser.add_argument('--preprocessing',  type=str, default="rescale" )
-parser.add_argument('--use_skip',  type=str, default=True )
-parser.add_argument('--Train_Size',  type=int, default=100000 )
-parser.add_argument('--Test_Size',  type=int, default=10000 )
-parser.add_argument('--seed',  type=int, default=0 )
 
 
 resume_train = False

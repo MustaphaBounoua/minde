@@ -38,7 +38,6 @@ BATCH_SIZE = [128, 256]
 BATCH_SIZE_TEST = 1000
 NB_devices = 1
 N_runs = 10
-# SIGMAS = [0.5,1.0,1.5,2,3,5]
 SIGMAS = [0.5, 1.0, 1.5, 2, 3, 5, 10]
 
 

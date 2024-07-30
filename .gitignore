@@ -26,6 +26,7 @@ sdist/
 backup/
 var/
 myvenv/
+
 results/
 results_imp/
 trained_models_imp/

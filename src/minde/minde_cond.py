@@ -43,7 +43,11 @@ class Minde_c(pl.LightningModule):
         self.use_ema = use_ema
         self.plot_epoch = plot_epoch
         self.save_hyperparameters(
-            "d", "debias", "lr", "use_ema", "weighted", "dim_x", "dim_y", "gt", "batch_size")
+            "d", "debias", "lr", 
+            "use_ema", "weighted", 
+            "dim_x", "dim_y", 
+            "gt", 
+            "batch_size")
 
         self.test_samples = test_samples
         self.T = torch.nn.Parameter(
@@ -261,3 +265,14 @@ class Minde_c(pl.LightningModule):
             est_score = 0.5 * (g**2*(a_x - a_xy)**2).sum() / M
 
         return est_score.detach()
+
+    
+    def fit(self,train_l,test_l):
+        
+        pl.Trainer(
+            logger=TensorBoardLogger(save_dir=self.args.out_dir
+                              name="mi_"+task.name),
+            accelerator=self.args.accelerator,
+            max_epochs=self.args.max_epochs,
+            default_root_dir=self.args.out_dir,
+        ).fit(model=minde, train_dataloaders=train_l,val_dataloaders=test_l  )

@@ -103,7 +103,6 @@ class VP_SDE():
 
         weight = 1.0
         if learn_cond:
-
             score_m = deconcat(score, mods_list, mods_sizes)
             for idx, i in enumerate(mask):
 
