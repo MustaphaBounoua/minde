@@ -4,9 +4,8 @@ import torch
 from torch import nn
 
 
-# constants
-
 # helpers functions
+
 
 def exists(x):
     return x is not None
@@ -68,8 +67,9 @@ class Block(nn.Module):
         # self.proj = WeightStandardizedConv2d(dim, dim_out, 3, padding = 1)
         self.proj = nn.Linear(dim, dim_out)
         self.act = nn.SiLU()
+        # self.act = nn.Relu()
         self.norm = nn.GroupNorm(groups, dim)
-       # self.norm = nn.BatchNorm1d( dim_out)
+        # self.norm = nn.BatchNorm1d( dim)
         self.shift_scale = shift_scale
 
     def forward(self, x, t=None):
@@ -120,34 +120,34 @@ class ResnetBlock(nn.Module):
         return h + self.lin_layer(x)
 
 
-class UnetMLP(nn.Module):
+class UnetMLP_simple(nn.Module):
     def __init__(
         self,
         dim,
-        init_dim=None,
-        out_dim=None,
+        init_dim=128,
         dim_mults=(1, 1),
         resnet_block_groups=8,
         time_dim=128,
-        nb_mod=1,
+        nb_var=1,
     ):
         super().__init__()
 
         # determine dimensions
-        self.nb_mod = nb_mod
+        self.nb_var = nb_var
         init_dim = default(init_dim, dim)
         if init_dim == None:
             init_dim = dim * dim_mults[0]
-        self.init_lin = nn.Linear(dim, init_dim)
 
+        dim_in = dim
         dims = [init_dim, *map(lambda m: init_dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
         block_klass = partial(ResnetBlock, groups=resnet_block_groups)
 
+        self.init_lin = nn.Linear(dim, init_dim)
+
         self.time_mlp = nn.Sequential(
-            nn.Linear(nb_mod, time_dim),
-            # nn.Linear(fourier_dim, time_dim),
+            nn.Linear(nb_var, time_dim),
             nn.GELU(),
             nn.Linear(time_dim, time_dim)
         )
@@ -166,36 +166,32 @@ class UnetMLP(nn.Module):
                                     #        block_klass(dim_in, dim_in, time_emb_dim = time_dim)
                                     ])
 
-            module.append(Downsample(dim_in, dim_out)
-                          if not is_last else nn.Linear(dim_in, dim_out))
+            # module.append( Downsample(dim_in, dim_out) if not is_last else nn.Linear(dim_in, dim_out))
             self.downs.append(module)
 
         mid_dim = dims[-1]
         joint_dim = mid_dim
        # joint_dim = 24
-        self.mid_block1 = block_klass(
-            mid_dim, joint_dim, time_emb_dim=time_dim)
+        self.mid_block1 = block_klass(mid_dim, mid_dim, time_emb_dim=time_dim)
 
-        self.mid_block2 = block_klass(
-            joint_dim, mid_dim, time_emb_dim=time_dim)
+        # self.mid_block2 = block_klass(joint_dim, mid_dim, time_emb_dim = time_dim)
 
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out)):
             is_last = ind == (len(in_out) - 1)
             module = nn.ModuleList([block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
                                     #       block_klass(dim_out + dim_in, dim_out, time_emb_dim = time_dim)
                                     ])
-            module.append(Upsample(dim_out, dim_in)
-                          if not is_last else nn.Linear(dim_out, dim_in))
+            # module.append( Upsample(dim_out, dim_in) if not is_last else  nn.Linear(dim_out, dim_in))
             self.ups.append(module)
 
         # default_out_dim = channels * (1 if not learned_variance else 2)
 
-        self.out_dim = default(out_dim, dim)
+        self.out_dim = dim_in
 
         self.final_res_block = block_klass(
             init_dim * 2, init_dim, time_emb_dim=time_dim)
 
-        self.proj = nn.Linear(init_dim, self.out_dim)
+        self.proj = nn.Linear(init_dim, dim)
 
         self.proj.weight.data.fill_(0.0)
         self.proj.bias.data.fill_(0.0)
@@ -206,10 +202,10 @@ class UnetMLP(nn.Module):
             self.proj
         )
 
-    def forward(self, x, t, std=None):
-        t = t.reshape(t.size(0), self.nb_mod)
+    def forward(self, x, t=None, std=None):
+        t = t.reshape(t.size(0), self.nb_var)
 
-        x = self.init_lin(x)
+        x = self.init_lin(x.float())
 
         r = x.clone()
 
@@ -219,27 +215,27 @@ class UnetMLP(nn.Module):
 
         for blocks in self.downs:
 
-            block1, downsample = blocks
+            block1 = blocks[0]
 
             x = block1(x, t)
 
             h.append(x)
-            x = downsample(x)
+       #     x = downsample(x)
 
-        x = self.mid_block1(x, t)
+        # x = self.mid_block1(x, t)
 
-        x = self.mid_block2(x, t)
+        # x = self.mid_block2(x, t)
 
         for blocks in self.ups:
 
-            block1, upsample = blocks
+            block1 = blocks[0]
             x = torch.cat((x, h.pop()), dim=1)
             x = block1(x, t)
 
             # x = torch.cat((x, h.pop()), dim = 1)
             # x = block2(x, t)
 
-            x = upsample(x)
+           # x = upsample(x)
 
         x = torch.cat((x, r), dim=1)
 

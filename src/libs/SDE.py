@@ -1,7 +1,7 @@
 
 import torch
-import random
-
+import itertools
+import numpy as np
 from .util import *
 from .importance import *
 
@@ -12,167 +12,144 @@ class VP_SDE():
                  beta_max=20,
                  N=1000,
                  importance_sampling=True,
-                 liklihood_weighting=False,
-                 nb_mod=2
+                 type="c",
+                 weight_s_functions=True,
+                 var_sizes=[1, 1]
                  ):
         self.beta_min = beta_min
         self.beta_max = beta_max
+        self.var_sizes = var_sizes
+        self.rand_batch = False
         self.N = N
         self.T = 1
         self.importance_sampling = importance_sampling
-        self.liklihood_weighting = liklihood_weighting
+        self.nb_var = len(self.var_sizes)
+        self.weight_s_functions = weight_s_functions
         self.device = "cuda"
-        self.nb_mod = nb_mod
-        self.t_epsilon = 1e-3
+        self.type = type
+        self.masks = self.get_masks_training()
+       
+
+    def set_device(self, device):
+        self.device = device
+        self.masks = self.masks.to(device)
 
     def beta_t(self, t):
         return self.beta_min + t * (self.beta_max - self.beta_min)
 
     def sde(self, t):
+        # Returns the drift and diffusion coefficient of the SDE ( f(t), g(t)) respectively.
         return -0.5*self.beta_t(t), torch.sqrt(self.beta_t(t))
 
     def marg_prob(self, t, x):
-        # return mean std of p(x(t))
+        
+        ## Returns mean and std of the marginal distribution P_t(x_t) at time t.
         log_mean_coeff = -0.25 * t ** 2 * \
             (self.beta_max - self.beta_min) - 0.5 * t * self.beta_min
-
-        log_mean_coeff = log_mean_coeff.to(self.device)
-
         mean = torch.exp(log_mean_coeff)
         std = torch.sqrt(1 - torch.exp(2 * log_mean_coeff))
-        return mean * torch.ones_like(x).to(self.device), std.view(-1, 1) * torch.ones_like(x).to(self.device)
+        return mean.view(-1, 1) * torch.ones_like(x, device=self.device), std.view(-1, 1) * torch.ones_like(x, device=self.device)
 
-    def sample(self, t, data, mods_list):
+    def sample(self, x_0, t):
+        ## Forward SDE
+        # Sample from P(x_t | x_0) at time t. Returns A noisy version of x_0.
+        mean, std = self.marg_prob(t, t)
+        z = torch.randn_like(x_0, device=self.device)
+        x_t = x_0 * mean + std * z
+        return x_t, z, mean, std
 
-        nb_mods = len(mods_list)
-        self.device = t.device
+    def train_step(self, data, score_net, eps=1e-5):
+        """
+        Perform a single training step for the SDE model.
 
-        x_t_m = {}
-        std_m = {}
-        mean_m = {}
-        z_m = {}
-        g_m = {}
+        Args:
+            data : The input data for the training step.
+            score_net : The score network used for computing the score.
+            eps: A small value used for numerical stability when importance sampling is Off. Defaults to 1e-5.
+        Returns:
+            Tensor: The loss value computed during the training step.
+        """
 
-        for i, mod in enumerate(mods_list):
-            x_mod = data[mod]
-
-            z = torch.randn_like(x_mod).to(self.device)
-            f, g = self.sde(t[:, i])
-
-            mean_i, std_i = self.marg_prob(
-                t[:, i].view(x_mod.shape[0], 1), x_mod)
-
-            std_m[mod] = std_i
-            mean_m[mod] = mean_i
-            z_m[mod] = z
-            g_m[mod] = g
-            x_t_m[mod] = mean_i * x_mod + std_i * z
-
-        return x_t_m, z_m, std_m, g_m, mean_m
-
-    def train_step(self, data, score_net, eps=1e-5, d=0.5):
-        # data= unsequeeze_dict(data)
-        x = concat_vect(data)
-
-        mods_list = list(data.keys())
-        mods_sizes = [data[key].size(1) for key in mods_list]
-
-        nb_mods = len(mods_list)
+        x_0 = concat_vect(data)
+        bs = x_0.size(0)
 
         if self.importance_sampling:
-            t = self.sample_debiasing_t(shape=(x.shape[0], 1)) .to(self.device)
+            t = (self.sample_importance_sampling_t(
+                shape=(x_0.shape[0], 1))).to(self.device)
         else:
             t = ((self.T - eps) *
-                 torch.rand((x.shape[0], 1)) + eps).to(self.device)
+                 torch.rand((x_0.shape[0], 1)) + eps).to(self.device)
+        # randomly sample an index to choose a masks
+        if self.rand_batch:
+            i = torch.randint(low=1, high=len(self.masks)+1, size=(bs,)) - 1
+        else:
+            i = (torch.randint(low=1, high=len(self.masks)+1, size=(1,)) - 1 ).expand(bs)
+            
+        # Select the mask randomly from the list of masks to learn the denoising score functions.
 
-        t_n = t.expand((x.shape[0], nb_mods))
+        mask = self.masks[i.long(), :]
+        mask_data = expand_mask(mask, self.var_sizes)
+        # Varaibles that are not marginal
+        mask_data_marg = (mask_data < 0).float()
+        # Varaibles that will be diffused
+        mask_data_diffused = mask_data.clip(0, 1)
+       
+        x_t, Z, _, _ = self.sample(x_0=x_0, t=t)
 
-        learn_cond = (torch.bernoulli(torch.tensor([d])) == 1.0)
-        mask = [1, 1]
-        if learn_cond:
-            subsets = [[0, 1], [1, 0]]
-            i = random.randint(0, len(mods_list)-1)
-            mask = subsets[i]
-            mask_time = torch.tensor(mask).to(self.device).expand(t_n.size())
-            t_n = t_n * mask_time
+        x_t = mask_data_diffused * x_t + (1 - mask_data_diffused) * x_0
 
-        x_t_m, z_m, std_m, g_m, mean_m = self.sample(
-            t=t_n, data=data, mods_list=mods_list)
+        x_t = x_t * (1 - mask_data_marg)+  torch.zeros_like(x_0, device=self.device) *mask_data_marg
 
-        score = - score_net(concat_vect(x_t_m), t=t_n, std=None)
+       
+        score = score_net(x_t, t=t, mask=mask, std=None) * mask_data_diffused
+        Z = Z * mask_data_diffused
 
-        weight = 1.0
-        if learn_cond:
-            score_m = deconcat(score, mods_list, mods_sizes)
-            for idx, i in enumerate(mask):
-
-                if i == 0:
-                    # all the benchmark has two equal size mods
-                    dim_clean = score_m[mods_list[idx]].size(1)
-                    z_m.pop(mods_list[idx])
-                    score_m.pop(mods_list[idx])
-
-                else:
-                    dim_diff = score_m[mods_list[idx]].size(1)
-            weight += dim_clean/dim_diff
-            score = concat_vect(score_m)
-
-        loss = weight * \
-            torch.square(score + concat_vect(z_m)).sum(1, keepdim=False)
-
+        #Score matching of diffused data reweithed proportionnaly to the size of the diffused data.
+        total_size = score.size(1)
+        n_diff=torch.sum(mask_data_diffused, dim=1)
+        weight = (((total_size - n_diff) / total_size) + 1).view(bs, 1)
+        loss = (weight * (torch.square(score - Z))).sum(1, keepdim=False)/n_diff
+        
         return loss
 
-    def train_step_cond(self, data, score_net, eps=1e-3, d=0.5):
-        # data= unsequeeze_dict(data)
-        x = concat_vect(data)
 
-        mods_list = list(data.keys())
-
-        nb_mods = len(mods_list)
-
-        if self.importance_sampling:
-            t = (self.sample_debiasing_t(
-                shape=(x.shape[0], 1))).to(self.device)
-        else:
-            t = ((self.T - eps) *
-                 torch.rand((x.shape[0], 1)) + eps).to(self.device)
-
-        t_n = t.expand((x.shape[0], nb_mods))
-
-        mask = [1, 0]
-
-        x_t_m, z_m, std_m, g_m, mean_m = self.sample(
-            t=t_n, data=data, mods_list=mods_list)
-
-        learn_cond = (torch.bernoulli(torch.tensor([d])) == 1.0)
-        if learn_cond:
-            mask = [1, 0]
-            mask_time = torch.tensor(mask).to(self.device).expand(t_n.size())
-            t_n = t_n * mask_time + 1.0 * (1 - mask_time)
-            # print(learn_cond)
-            # print(t_n)
-            x_t = concat_vect({"x": x_t_m["x"],
-                               "y": data["y"]})
-        else:
-            mask = [1, 0]
-            mask_time = torch.tensor(mask).to(self.device).expand(t_n.size())
-            t_n = t_n * mask_time + 0.0 * (1 - mask_time)
-
-            x_t = concat_vect({"x": x_t_m["x"],
-                               "y": torch.zeros_like(data["y"])})
-
-            # print(learn_cond)
-            # print(t_n)
-
-        score = - score_net(x_t, t=t_n, std=None)
-        weight = 1.0
-        loss = weight * torch.square(score + z_m["x"]).sum(1, keepdim=False)
-        return loss
-
-    def sample_debiasing_t(self, shape):
+    
+    
+    def get_masks_training(self):
         """
-        non-uniform sampling of t to debias the weight std^2/g^2
-        the sampling distribution is proportional to g^2/std^2 for t >= t_epsilon
-        for t < t_epsilon, it's truncated
+        Returns a list of masks each corresponds to a score function needed to compute MI.
+        
+        
         """
-        return sample_vp_truncated_q(shape, self.beta_min, self.beta_max, t_epsilon=self.t_epsilon, T=self.T)
+        if self.type=="c":
+            masks= np.array([[1,-1],[1,0]]) 
+        elif self.type=="j":
+            masks= np.array([[1,1],[1,0],[0,1]])  
+        
+        if self.weight_s_functions:
+            return torch.tensor(self.weight_masks(masks), device=self.device)
+        else:
+            return  torch.tensor(masks, device=self.device)
+
+
+    def weight_masks(self, masks):
+        """ Weighting the mask list so the more complex score functions are picked more often durring the training step. 
+        This is done by duplicating the mask with the list of masks.
+        """
+        masks_w = []
+  
+        #print("Weighting the scores to learn ")
+        for s in masks:
+                nb_var_inset = np.sum(s == 1)
+                for i in range(nb_var_inset):
+                    masks_w.append(s)
+        np.random.shuffle(masks_w)
+        return np.array(masks_w)
+
+    def sample_importance_sampling_t(self, shape):
+        """
+        Non-uniform sampling of t to importance_sampling. See [1,2] for more details.
+        [1] https://arxiv.org/abs/2106.02808
+        [2] https://github.com/CW-Huang/sdeflow-light
+        """
+        return sample_vp_truncated_q(shape, self.beta_min, self.beta_max, T=self.T)

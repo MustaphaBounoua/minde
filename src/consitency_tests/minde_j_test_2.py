@@ -31,7 +31,7 @@ parser.add_argument('--seed',  type=str, default=0 )
 
 class Minde_mnist_j(pl.LightningModule):
     
-    def __init__(self,dim_x,dim_y ,lr = 1e-3,mod_list=["x","y"],use_skip = True, 
+    def __init__(self,dim_x,dim_y ,lr = 1e-3,var_list=["x","y"],use_skip = True, 
                  debias = False, weighted = False,use_ema = False ,
                  d = 0.3, test_samples = None,gt = 0.0, aes=None,
                  rows = 28
@@ -40,7 +40,7 @@ class Minde_mnist_j(pl.LightningModule):
         self.dim_x =dim_x
         self.dim_y =dim_y
 
-        self.mod_list = mod_list
+        self.var_list = var_list
         self.gt = gt 
         self.weighted = weighted
 
@@ -267,8 +267,8 @@ class Minde_mnist_j(pl.LightningModule):
         x1 = z_c * masks[0] + torch.randn_like(z_c).to(z_c) * (1.0 - masks[0])
         x2 = z_c * masks[1] + torch.randn_like(z_c).to(z_c) * (1.0 - masks[1])
 
-        cond_in_0=  self.destanderdize(deconcat(x1,mod_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]  ) )
-        cond_in_1=  self.destanderdize(deconcat(x2,mod_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y] ) )
+        cond_in_0=  self.destanderdize(deconcat(x1,var_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]  ) )
+        cond_in_1=  self.destanderdize(deconcat(x2,var_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y] ) )
 
         cond_in_out_1 =self.decode(cond_in_0)
         cond_in_out_2 =self.decode(cond_in_1)
@@ -283,8 +283,8 @@ class Minde_mnist_j(pl.LightningModule):
             output_cond_1 = self.sde.modality_inpainting(score_net=self.score,x = x2 , mask = masks[1],subset=[1])
              
        
-        cond_samp_0=  self.destanderdize(deconcat(output_cond_0,mod_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
-        cond_samp_1=  self.destanderdize(deconcat(output_cond_1,mod_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
+        cond_samp_0=  self.destanderdize(deconcat(output_cond_0,var_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
+        cond_samp_1=  self.destanderdize(deconcat(output_cond_1,var_list=["x1","x2","y","hy"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
         
         
         output_cond_0_im = self.decode(cond_samp_0)
@@ -562,7 +562,7 @@ if __name__ =="__main__":
     ae_2 =AE.load_from_checkpoint(paths[1]).eval()
     ae_3 =AE.load_from_checkpoint(paths[2]).eval()
 
-    mld = Minde_mnist_j(mod_list= ["x","y"],
+    mld = Minde_mnist_j(var_list= ["x","y"],
          dim_x= dim,dim_y=dim,lr = LR, 
          aes= nn.ModuleDict({
               "x1":ae_1,"x2":ae_1, "y":ae_2,"hy":ae_3

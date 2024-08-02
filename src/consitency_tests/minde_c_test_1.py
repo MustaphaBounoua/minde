@@ -3,8 +3,8 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from src.model.score_net import UnetMLP
-from src.libs.ema import EMA
+from src.models.mlp import UnetMLP_simple
+from src.libs.util import EMA
 from src.libs.SDE import VP_SDE, concat_vect, deconcat
 from ..libs.importance import get_normalizing_constant
 from .Autoencoder import AE, MnistDecoder, MnistEncoder, log_modalities
@@ -25,7 +25,7 @@ parser.add_argument('--seed',  type=int, default=0)
 
 class Minde_mnist_c(pl.LightningModule):
 
-    def __init__(self, dim_x, dim_y, lr=1e-3, mod_list=["x", "y"], use_skip=True,
+    def __init__(self, dim_x, dim_y, lr=1e-3, var_list=["x", "y"], use_skip=True,
                  debias=False, weighted=False, use_ema=False,
                  d=0.5, test_samples=None, gt=0.0, aes=None,
                  rows=28
@@ -33,26 +33,17 @@ class Minde_mnist_c(pl.LightningModule):
         super(Minde_mnist_c, self).__init__()
         self.dim_x = dim_x
         self.dim_y = dim_y
-        self.mod_list = mod_list
+        self.var_list = var_list
         self.gt = gt
         self.weighted = weighted
 
-        if use_skip == True:
-            dim = (dim_x + dim_y)
-            if dim <= 5:
-                hidden_dim = 32
-            elif dim <= 10:
-                hidden_dim = 64
-            elif dim <= 50:
-                hidden_dim = 96
-            else:
-                hidden_dim = 128
-            hidden_dim = 256
-            time_dim = hidden_dim
-            self.score = UnetMLP(dim=(dim_x + dim_y), init_dim=hidden_dim,
+        hidden_dim = 256
+        time_dim = hidden_dim
+        self.score = UnetMLP_simple(dim=(dim_x + dim_y), init_dim=hidden_dim,
                                  dim_mults=(1, 1), time_dim=time_dim, nb_mod=2, out_dim=dim_x)
 
-        self.d = d
+    
+        
         self.stat = None
         self.debias = debias
         self.lr = lr
@@ -102,27 +93,27 @@ class Minde_mnist_c(pl.LightningModule):
     def encode(self, x):
         with torch.no_grad():
             latent_z = {}
-            for mod in self.mod_list:
+            for mod in self.var_list:
                 latent_z[mod] = self.aes[mod].encode(x[mod]).detach()
             return latent_z
 
     def decode(self, z):
         with torch.no_grad():
             output = {}
-            for mod in self.mod_list:
+            for mod in self.var_list:
                 output[mod] = self.aes[mod].decode(z[mod]).detach()
             return output
 
     def standerdize(self, z):
         if self.stat:
-            for mod in self.mod_list:
+            for mod in self.var_list:
                 z[mod] = (z[mod] - self.stat[mod]["mean"]) / \
                     self.stat[mod]["std"]
         return z
 
     def destanderdize(self, z):
         if self.stat:
-            for mod in self.mod_list:
+            for mod in self.var_list:
                 z[mod] = (z[mod] * self.stat[mod]["std"]) + \
                     self.stat[mod]["mean"]
         return z
@@ -135,7 +126,7 @@ class Minde_mnist_c(pl.LightningModule):
 
         if self.global_step == 0:
             self.stat = {}
-            for mod in self.mod_list:
+            for mod in self.var_list:
                 self.stat[mod] = {
                     "mean": z[mod].mean(dim=0),
                     "std": z[mod].std(dim=0),
@@ -185,7 +176,7 @@ class Minde_mnist_c(pl.LightningModule):
     def log_samples(self):
         x_c = torch.rand((8, self.dim_x + self.dim_y)).to(self.device)
         x_c = self.standerdize(
-            deconcat(x_c, self.mod_list, sizes=[self.dim_x, self.dim_y]))
+            deconcat(x_c, self.var_list, sizes=[self.dim_x, self.dim_y]))
         x_c = concat_vect(x_c)
 
         if self.use_ema:
@@ -196,7 +187,7 @@ class Minde_mnist_c(pl.LightningModule):
             z = self.sde.sample_euler_c(x_c, self.score)
 
         z_samp = self.destanderdize(
-            deconcat(z, mod_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
+            deconcat(z, var_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
         output = self.decode(z_samp)
         log_modalities(self.logger, output, [
                        "x", "y"], self.current_epoch, prefix="sampling/", nb_samples=8)
@@ -227,9 +218,9 @@ class Minde_mnist_c(pl.LightningModule):
        # x1 = z_c * masks[0] + torch.randn_like(z).to(z) * (1.0 - masks[0])
         x2 = z_c * masks[1] + torch.randn_like(z).to(z) * (1.0 - masks[1])
 
-        # cond_in_0=  self.destanderdize(deconcat(x1,mod_list=["x","y"],sizes= [self.dim_x,self.dim_y]) )
+        # cond_in_0=  self.destanderdize(deconcat(x1,var_list=["x","y"],sizes= [self.dim_x,self.dim_y]) )
         cond_in_1 = self.destanderdize(
-            deconcat(x2, mod_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
+            deconcat(x2, var_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
       #  cond_in_out_1 =self.decode(cond_in_0)
         cond_in_out_2 = self.decode(cond_in_1)
        # log_modalities(self.logger, cond_in_out_1, ["x","y"], self.current_epoch ,prefix="cond_0_in/" ,nb_samples=8)
@@ -245,9 +236,9 @@ class Minde_mnist_c(pl.LightningModule):
             output_cond_1 = self.sde.modality_inpainting_c(
                 score_net=self.score, x=x2, mask=masks[1], subset=[1])
 
-       # cond_samp_0=  self.destanderdize(deconcat(output_cond_0,mod_list=["x","y"],sizes= [self.dim_x,self.dim_y]) )
+       # cond_samp_0=  self.destanderdize(deconcat(output_cond_0,var_list=["x","y"],sizes= [self.dim_x,self.dim_y]) )
         cond_samp_1 = self.destanderdize(
-            deconcat(output_cond_1, mod_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
+            deconcat(output_cond_1, var_list=["x", "y"], sizes=[self.dim_x, self.dim_y]))
 
      #   output_cond_0_im = self.decode(cond_samp_0)
         output_cond_1_im = self.decode(cond_samp_1)
@@ -459,11 +450,11 @@ if __name__ == "__main__":
     dim = 16
     LR = 1e-3
     paths = [
-        "/home/*****/trained_models/ae_mnist_rows/crop_28/version_0/checkpoints/epoch=99-step=93700.ckpt",
-        "/home/*****/trained_models/ae_mnist_rows/crop_{}/version_0/checkpoints/epoch=99-step=93700.ckpt".format(
+        "trained_models/ae_mnist_rows/crop_28/version_0/checkpoints/epoch=99-step=93700.ckpt", ##full image
+        "trained_models/ae_mnist_rows/crop_{}/version_0/checkpoints/epoch=99-step=93700.ckpt".format(
             rows)
     ]
-    # crop_rates = [0,0.2,0.4,0.5,0.6,0.7,0.9,1.0]
+    
     train_l, test_l = get_mnist_dataset(batch_size=Batch_size)
 
     train_samp = next(iter(train_l))[0][:8,]
@@ -472,7 +463,7 @@ if __name__ == "__main__":
     ae_1 = AE.load_from_checkpoint(paths[0]).eval()
     ae_2 = AE.load_from_checkpoint(paths[1]).eval()
 
-    mld = Minde_mnist_c(mod_list=["x", "y"],
+    mld = Minde_mnist_c(var_list=["x", "y"],
                       dim_x=dim, dim_y=dim, lr=LR, aes=nn.ModuleDict({
                           "x": ae_1, "y": ae_2
                       }), rows=rows,

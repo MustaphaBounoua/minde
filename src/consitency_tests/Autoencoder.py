@@ -1,17 +1,16 @@
 
 import torch
 import torch.nn as nn
-
 import pytorch_lightning as pl
 import torchvision
-from src.data.mnist_pair import get_mnist_dataset
+from src.consitency_tests.mnist_pair import get_mnist_dataset
 from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--rows',  type=int, default=0 )
 
-LATENT_DIM =64
+LATENT_DIM = 64
 INPUT_DATA_DIM = 784
 dataSize = torch.Size([1, 28, 28])
 num_hidden_layers = 1

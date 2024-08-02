@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from src.model.score_net import UnetMLP
+from src.models.mlp import UnetMLP_simple
 from src.libs.ema import EMA
 from src.libs.SDE import VP_SDE ,concat_vect ,deconcat
 from torch.utils.data import Dataset ,DataLoader
@@ -33,8 +33,8 @@ parser.add_argument('--seed',  type=str, default=0 )
 
 class Minde_mnist_j(pl.LightningModule):
     
-    def __init__(self,dim_x,dim_y ,lr = 1e-3,mod_list=["x","y"],use_skip = True, 
-                 debias = False, weighted = False,use_ema = False ,
+    def __init__(self,dim_x,dim_y ,lr = 1e-3,var_list=["x","y"], 
+                 importance_sampling = False, weighted = False,use_ema = False ,
                  d = 0.5, test_samples = None,gt = 0.0, aes=None,
                  rows = 28,batch_size=64
                  ):
@@ -42,40 +42,29 @@ class Minde_mnist_j(pl.LightningModule):
         self.dim_x =dim_x
         self.dim_y =dim_y
 
-        self.mod_list = mod_list
+        self.var_list = var_list
         self.gt = gt 
         self.weighted = weighted
         self.batch_size = batch_size
   
-        if use_skip == True:
-            dim = (dim_x +dim_y) *2
-            if dim <=5:
-                hidden_dim = 32
-            elif dim <= 10:
-                hidden_dim = 64
-            elif dim <=50:
-                 hidden_dim = 96
-            else:
-                 hidden_dim = 128
-            hidden_dim=256
-            time_dim = hidden_dim
-            self.score = UnetMLP(dim= (dim_x +dim_y) *2, init_dim= hidden_dim ,dim_mults=(1,1), time_dim= time_dim ,nb_mod= 2 )
+
+        hidden_dim=256
+        time_dim = hidden_dim
+        self.score = UnetMLP_simple(dim= (dim_x +dim_y) *2, init_dim= hidden_dim ,dim_mults=(1,1), time_dim= time_dim ,nb_mod= 2 )
         
         self.d =d
         self.stat = None
-        self.debias = debias
+        self.importance_sampling = importance_sampling
         self.lr = lr
         self.use_ema = use_ema  
         self.rows = rows
    
-        self.save_hyperparameters("d","debias","lr","use_ema","weighted","dim_x","dim_y","gt","rows")
+        self.save_hyperparameters("importance_sampling","lr","use_ema","dim_x","dim_y","gt","rows")
         self.test_samples = self.get_mod_cropped_dataset(test_samples)
         self.aes = aes
-       
-        
-        self.T = torch.nn.Parameter(torch.FloatTensor([T0]), requires_grad=False)
+
         self.model_ema = EMA(self.score, decay=0.999) if use_ema else None
-        self.sde = VP_SDE(importance_sampling=self.debias ,liklihood_weighting=False)
+        self.sde = VP_SDE(importance_sampling=self.importance_sampling, type="c")
     
 
    
@@ -283,8 +272,8 @@ class Minde_mnist_j(pl.LightningModule):
         x1 = z_c * masks[0] + torch.randn_like(z_c).to(z_c) * (1.0 - masks[0])
         x2 = z_c * masks[1] + torch.randn_like(z_c).to(z_c) * (1.0 - masks[1])
 
-        cond_in_0=  self.destanderdize(deconcat(x1,mod_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]  ) )
-        cond_in_1=  self.destanderdize(deconcat(x2,mod_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y] ) )
+        cond_in_0=  self.destanderdize(deconcat(x1,var_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]  ) )
+        cond_in_1=  self.destanderdize(deconcat(x2,var_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y] ) )
 
         cond_in_out_1 =self.decode(cond_in_0)
         cond_in_out_2 =self.decode(cond_in_1)
@@ -299,8 +288,8 @@ class Minde_mnist_j(pl.LightningModule):
             output_cond_1 = self.sde.modality_inpainting(score_net=self.score,x = x2 , mask = masks[1],subset=[1])
              
        
-        cond_samp_0=  self.destanderdize(deconcat(output_cond_0,mod_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
-        cond_samp_1=  self.destanderdize(deconcat(output_cond_1,mod_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
+        cond_samp_0=  self.destanderdize(deconcat(output_cond_0,var_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
+        cond_samp_1=  self.destanderdize(deconcat(output_cond_1,var_list=["x1","x2","y1","y2"],sizes= [self.dim_x,self.dim_x,self.dim_y,self.dim_y]) )
         
         
         output_cond_0_im = self.decode(cond_samp_0)
@@ -607,7 +596,7 @@ if __name__ =="__main__":
     ae_2 =AE.load_from_checkpoint(paths[1]).eval()
    
 
-    mld = Minde_mnist_j(mod_list= ["x","y"],
+    mld = Minde_mnist_j(var_list= ["x","y"],
          dim_x= dim,dim_y=dim,lr = LR, 
          aes= nn.ModuleDict({
               "x1":ae_1,"x2":ae_1, "y1":ae_2,"y2":ae_2
