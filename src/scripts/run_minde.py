@@ -6,7 +6,7 @@ import json
 import bmi
 from .helper import *
 from src.libs.minde import MINDE
-from scripts.config import get_config
+from src.scripts.config import get_config
 jax.config.update('jax_platform_name', 'cpu')
 
 parser = get_config()
