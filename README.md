@@ -3,17 +3,8 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2310.09031-b31b1b.svg)](https://arxiv.org/abs/2310.09031)
 [![Venue](https://img.shields.io/badge/venue-ICLR_2024-darkblue)](https://iclr.cc/virtual/2024/poster/19605)
 
-# Minde
-Official implementation of MINDE: Mutual Information Neural Diffusion Estimation 
-( clean version)
+# MINDE: Mutual Information Neural Diffusion Estimation 
 
-
-
-[![arXiv](https://img.shields.io/badge/arXiv-2310.09031-b31b1b.svg)](https://arxiv.org/abs/2310.09031)
-[![Venue](https://img.shields.io/badge/venue-ICLR_2024-darkblue)](https://iclr.cc/virtual/2024/poster/19605)
-
-
-# Minde: Score-based O-INFORMATION Estimation
 
 This repository contains the implementation for the paper [Mutual Information Neural Diffusion Estimation](https://arxiv.org/pdf/2402.05667) presented at ICLR 2024.
 
@@ -40,10 +31,8 @@ $ pip install -r requirements.txt
 ```
 
 
-## Usage
 
-
-### Demo
+### Usage
 
 Checkout  `quickstart.ipynb` for a quickstart on how to use MINDE.
 
@@ -76,10 +65,10 @@ minde.compute_mi()
 Running a particular experiment can be done using the scripts in `src/scripts/run_minde`. The experiments configurations are described in `src/scripts/config.py`
 
 
-To run the experiments and reproduce the results from the paper, the shell scripts are provided in `scripts/job.sh`.
+To run the experiments and reproduce results, an example shell script is provided in `src/scripts/job.sh`.
 
 
-## Project Structure
+### Project Structure
 ```
 minde/
 
@@ -91,8 +80,8 @@ minde/
 │   │    ├──helper.py       # helper functions
 │   │    ├──run_minde.py    # script MINDE on several tasks
 │   │    └──job.sh          # A shell job to run MINDE on several gpus on several tasks
-│   └── libs               # SOI models
-│       ├──soi.py          # The main minde model class
+│   └── libs               
+│       ├──minde.py          # The main minde model class
 │       ├──SDE.py          # The noising process which permits the learn the score functions
 │       ├──info_measures.py # The set of functions to compute mutual information
 │       ├──importance.py   # Required function to implement importance sampling scheme.
