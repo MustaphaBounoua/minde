@@ -5,8 +5,7 @@ from .SDE import VP_SDE
 from .util import EMA,concat_vect, deconcat, marginalize_data, cond_x_data , get_samples
 from .info_measures import mi_cond,mi_cond_sigma,mi_joint,mi_joint_sigma 
 from ..models.mlp import UnetMLP_simple
-from ..models.transformer import DiT
-from ..models.tx_img import DiT_S_8
+
 
 
 class MINDE(pl.LightningModule):
@@ -22,8 +21,7 @@ class MINDE(pl.LightningModule):
         self.sizes = list(var_list.values())
         self.gt = gt
         
-        self.marginals = -1 if self.args.arch == "tx" else 1 # How to handle the marginals scores, non marginals are set to null vector zero if transfomer or gaussian noise if MLP
-       
+        
         self.save_hyperparameters("args")
 
         
@@ -35,12 +33,8 @@ class MINDE(pl.LightningModule):
         if self.args.arch == "mlp":
             self.score = UnetMLP_simple(dim=np.sum(self.sizes), init_dim=hidden_dim, dim_mults=[],
                                         time_dim=hidden_dim, nb_var=len(var_list.keys()))
-        elif self.args.arch == "tx_img":
-            self.score = DiT_S_8(in_channels=(1,1),input_size=(16,16))
-        elif self.args.arch == "tx":
-            self.score = DiT(depth=2,type = args.type, hidden_size=hidden_dim, var_list=var_list)
-        
-        
+        else:
+            raise NotImplementedError
         self.model_ema = EMA(self.score, decay=0.999) if self.args.use_ema else None
 
         self.sde = VP_SDE(importance_sampling=self.args.importance_sampling,
@@ -102,32 +96,9 @@ class MINDE(pl.LightningModule):
         Returns:
             torch.Tensor: The output score function (noise/std) if std !=None , else return noise .
         """
-        if self.args.arch == "tx":   
-            return self.score(x, t=t, mask=mask, std=std)
-        if self.args.arch == "tx_img":
-            z = deconcat(x,self.var_list,sizes=self.sizes)
-            x1,x2 = z[self.var_list[0]],z[self.var_list[1]]
-      
-            if mask[0][1]==0:
-    
-                i = torch.zeros_like(t)
-                x1 = x1.view(x1.shape[0],1,16,16)
-                x2 = x2.view(x1.shape[0],1,16,16)
-            else:
-         
-                i = torch.ones_like(t)
-                x1 = x1.view(x1.shape[0],1,16,16)
-                x2 =None
-            s1,s2 = self.score(x1=x1,x2=x2,t = (t*1000).squeeze(),y= i.long() )
-            if s2==None:
-                s2 = torch.zeros(s1.shape,device=x.device)
-       
-            score = torch.cat([s1.view(x1.shape[0],-1),s2.view(x1.shape[0],-1)],dim=1)  
-            if std!=None:
-                return score/std
-            else:
-                return score
-        else:
+
+        if self.args.arch == "mlp":
+          
             # MLP network requires the multitime vector
             #t = t.expand(mask.size()) * mask.clip(0, 1)
             t = t.expand(t.shape[0],mask.size(-1)) 
@@ -159,35 +130,8 @@ class MINDE(pl.LightningModule):
         score = self.model_ema.module if self.args.use_ema else self.score
         with torch.no_grad():
             score.eval()
-            if self.args.arch == "tx":
             
-                mask = mask.view(1, len(mask)).expand(x.size(0), len(mask))
-                return score(x, t=t, mask=mask, std=std)
-            
-            if self.args.arch == "tx_img":
-                z = deconcat(x,self.var_list,sizes=self.sizes)
-                x1,x2 = z[self.var_list[0]],z[self.var_list[1]]
-             
-                if mask[1]==0:
-              
-                    i = torch.zeros_like(t)
-                    x1 = x1.view(x1.shape[0],1,16,16)
-                    x2 = x2.view(x1.shape[0],1,16,16)
-                else:
-           
-                    i = torch.ones_like(t)
-                    x1 = x1.view(x1.shape[0],1,16,16)
-                    x2 =None
-                s1,s2 = self.score(x1=x1,x2=x2,t = (t*1000).squeeze(),y= i.long() )
-                if s2==None:
-                    s2 = torch.zeros(s1.shape,device=x.device)
-       
-                score = torch.cat([s1.view(x1.shape[0],-1),s2.view(x1.shape[0],-1)],dim=1)  
-                if std!=None:
-                    return score/std
-                else:
-                    return score
-            else:
+            if self.args.arch == "mlp":
                 t = t.expand(t.shape[0],mask.size(-1)) 
           
                 marg = (- mask).clip(0, 1) ## max <0 
@@ -337,17 +281,7 @@ class MINDE(pl.LightningModule):
             else:
                 hidden_dim = 256
             return hidden_dim
-        else:
-            dim_m = np.max(self.sizes)
-            if dim_m <= 5:
-                htx = 32
-            if dim_m <= 10:
-                htx = 48
-            elif dim_m <= 15:
-                htx = 64
-            else:
-                htx = 256
-            return htx
+        
 
 
 

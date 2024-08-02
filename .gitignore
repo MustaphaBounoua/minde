@@ -57,7 +57,11 @@ trained_models/
 results/
 qualitative/
 notebook_output/
+src/libs/minde_new.py
+src/models/tx_img.py
+src/models/transformer.py
 test/
+tests/
 my_env/
 temp/
 venv/
