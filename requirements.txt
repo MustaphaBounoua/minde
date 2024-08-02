@@ -6,3 +6,4 @@ torchvision==0.17.1
 tensorboard==2.17.0
 notebook==7.2.1
 jupyter==1.0.0
+
