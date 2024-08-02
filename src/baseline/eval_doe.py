@@ -5,7 +5,8 @@ from sklearn import preprocessing
 import argparse
 import os
 from torch.utils.data import Dataset, DataLoader
-from src.external.doe import DoE
+from src.baseline.doe import DoE
+
 import torch
 import torch.nn as nn
 
