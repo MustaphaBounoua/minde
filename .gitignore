@@ -25,7 +25,7 @@ parts/
 sdist/
 results/
 runs/
-src/consitency_tests/
+src/consistency_tests/
 backup/
 var/
 myvenv/
