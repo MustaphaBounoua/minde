@@ -1,8 +1,12 @@
 from torch.utils.data import Dataset ,DataLoader
 import torch
 from sklearn import preprocessing
-
+from src.scripts.config import get_config
 import numpy as np
+
+
+def get_default_config():
+    return get_config().parse_args([])
 
 BATCH_SIZE = [128,256]
 BATCH_SIZE_TEST = 1000
@@ -34,7 +38,6 @@ def get_data_loader(args, task,batch_size= None):
     if args.preprocessing == "rescale":
         X = preprocessing.StandardScaler(copy=True).fit_transform(X)
         Y = preprocessing.StandardScaler(copy=True).fit_transform(Y)
-        print(np.std(X,axis=0))
     
     
     x_train , y_train =  X[:size_train,], Y[:size_train,]
@@ -56,12 +59,13 @@ def get_data_loader(args, task,batch_size= None):
     batch_size_test = BATCH_SIZE_TEST
 
     train_loader = DataLoader(train, batch_size=batch_size,
-                          shuffle=True,
-                          num_workers=8, drop_last=True,pin_memory =True)
+                          shuffle=True,pin_memory =True,
+                          num_workers=32, drop_last=True)
 
     test_loader = DataLoader(test, batch_size=batch_size_test,
                           shuffle= False,
-                          num_workers=8, drop_last=False,pin_memory =True)
+                          num_workers=32, drop_last=False,pin_memory =True
+                          )
     
 
     return train_loader,test_loader
