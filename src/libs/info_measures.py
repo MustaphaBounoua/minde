@@ -53,7 +53,6 @@ def mi_joint_sigma( s_joint ,s_cond_x,s_cond_y,x_t,y_t,mean,std, g ,sigma,import
     
     M = g.shape[0] 
     
-
     chi_t = mean**2 * sigma**2 + std**2
     ref_score_x = -(x_t)/chi_t 
     ref_score_y = -(y_t)/chi_t 
