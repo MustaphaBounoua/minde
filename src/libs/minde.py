@@ -108,7 +108,7 @@ class MINDE(pl.LightningModule):
              
             t = t * (1- cond)  + 0.0 * cond
             t = t* (1-marg) + 1 * marg
-
+            
             return self.score(x, t=t, std=std)
 
 
