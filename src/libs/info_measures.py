@@ -69,6 +69,7 @@ def mi_joint_sigma( s_joint ,s_cond_x,s_cond_y,x_t,y_t,mean,std, g ,sigma,import
         e_joint = -0.5 * (g**2*(s_joint -  ref_score_xy  )**2).sum()/ M
         e_cond_x = -0.5 * (g**2*(s_cond_x -  ref_score_x  )**2).sum()/ M
         e_cond_y = -0.5 * (g**2*(s_cond_y -  ref_score_y  )**2).sum()/ M
+
         
     return (e_joint - e_cond_x - e_cond_y  ).item()
 
