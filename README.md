@@ -6,7 +6,7 @@
 # MINDE: Mutual Information Neural Diffusion Estimation 
 
 
-This repository contains the implementation for the paper [Mutual Information Neural Diffusion Estimation](https://arxiv.org/pdf/2402.05667) presented at ICLR 2024.
+This repository contains the implementation for the paper [Mutual Information Neural Diffusion Estimation](https://arxiv.org/pdf/2310.09031) presented at ICLR 2024.
 
 
 ## Description
